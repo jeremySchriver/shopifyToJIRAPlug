@@ -42,7 +42,7 @@ while count < len(orderNumberArray):
     lineCount = 0
     lineItemsInOrder = orderDF[orderNumberArray[count]].iloc[0]['line_items_num']
 
-    print((jira_base_url,
+    print(jira_base_url,
            jira_project_key,
            jira_username,
            jira_key,
@@ -51,21 +51,23 @@ while count < len(orderNumberArray):
            cardInfo[orderNumberArray[count]][0],
            cardInfo[orderNumberArray[count]][6],
            cardInfo[orderNumberArray[count]][7],
-           cardInfo[orderNumberArray[count]][1]))
-    response = createJIRATask(jira_base_url,
-                              jira_project_key,
-                              jira_username,
-                              jira_key,
-                              cardInfo[orderNumberArray[count]][4],
-                              cardInfo[orderNumberArray[count]][5],
-                              cardInfo[orderNumberArray[count]][0],
-                              cardInfo[orderNumberArray[count]][6],
-                              cardInfo[orderNumberArray[count]][7],
+           cardInfo[orderNumberArray[count]][1])
+    
+    #createJIRATask(base_url,project_key,username,key,title,description,orderNumber,orderLink,orderItemNum,orderReceivedDate)
+    response = createJIRATask(str(jira_base_url),
+                              str(jira_project_key),
+                              str(jira_username),
+                              str(jira_key),
+                              str(cardInfo[orderNumberArray[count]][4]),
+                              str(cardInfo[orderNumberArray[count]][5]),
+                              int(cardInfo[orderNumberArray[count]][0]),
+                              str(cardInfo[orderNumberArray[count]][6]),
+                              int(cardInfo[orderNumberArray[count]][7]),
                               cardInfo[orderNumberArray[count]][1])
-
-    if response.status_code == 200:
+    print(response.status_code)
+    if response.status_code == 200 or 201:
         # Parse the JSON string
-        response_json = response.text.json()
+        response_json = response.json()
 
         while lineCount < lineItemsInOrder:
             subKey = str(orderNumberArray[count]) + "_LI_" + str(lineCount)
