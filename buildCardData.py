@@ -60,7 +60,7 @@ def processShopifyOrderData(data):
             key = str(order_number)
 
             #Create frame within the dictionary based on key information
-            orderDF[key] = pd.DataFrame(columns=['order_id','order_number','created_at','fulfillment_status','financial_status','total_line_items_price','current_total_discounts','current_subtotal_price','total_shipping_price','total_price','customer_first_name','customer_last_name','customer_email_address','line_items_num'])
+            orderDF[key] = pd.DataFrame(columns=['order_id','order_number','created_at','order_due_date','order_ship_by_date','fulfillment_status','financial_status','total_line_items_price','current_total_discounts','current_subtotal_price','total_shipping_price','total_price','customer_first_name','customer_last_name','customer_email_address','line_items_num'])
 
             if line_items_num > 0:
                 while itemCount < line_items_num:             
@@ -116,11 +116,47 @@ def processShopifyOrderData(data):
             dt_obj = datetime.datetime.fromisoformat(input_string)
             dt_obj_eastern = dt_obj.astimezone(eastern)
             formatted_timestamp = dt_obj_eastern.strftime('%Y-%m-%d %H:%M %Z')
+
+            #TAT calculation area example formatting 2024-03-29
+            #Variables to set in json are "duedate" and "customfield_10037" which is ship by date
+            #Method to remove weekends from date delta calculations
+            def add_business_days(start_date, num_days):
+                current_date = start_date
+                business_days_added = 0
+                
+                while business_days_added < num_days:
+                    current_date += datetime.timedelta(days=1)
+                    if current_date.weekday() < 5:  # Monday to Friday
+                        business_days_added += 1
+                        
+                return current_date
+
+            #Read the contents of the preferences.json file
+            with open(os.path.join(os.getcwd(),"preferences.json"), 'r') as file:
+                preferences_data = json.load(file)
+
+            input_date = datetime.datetime.strptime(input_string, '%Y-%m-%dT%H:%M:%S%z')
             
+            #Set turn around time variables
+            turnAroundTime = preferences_data[0]['shopTAT']
+            shipByTat = preferences_data[0]['shopTAT'] + 2
+
+            #Run TAT variables through business days method to generate timestamp
+            orderDatePlusTat = add_business_days(input_date, turnAroundTime)
+            orderDatePlusShipByTat = add_business_days(input_date, shipByTat)
+            #orderDatePlusTat += datetime.timedelta(days=turnAroundTime)
+
+            #Format time stamps to expected JIRA formatimpor
+            formatted_order_due_date = orderDatePlusTat.strftime('%Y-%m-%d')
+            formatted_order_ship_by_date = orderDatePlusShipByTat.strftime('%Y-%m-%d')
+
+
             #Sets order values
             new_data = [data['orders'][count]['id'],
                         data['orders'][count]['order_number'],
                         formatted_timestamp,
+                        formatted_order_due_date,
+                        formatted_order_ship_by_date,
                         data['orders'][count]['fulfillment_status'],
                         data['orders'][count]['financial_status'],
                         data['orders'][count]['total_line_items_price'],
@@ -212,43 +248,55 @@ def buildCreateCardData(orderDF,lineItemDFCopy,orderNumberArray):
     orderNumbers = len(orderNumberArray)
 
     while orderCount < orderNumbers:
+        #Get TAT details from the order frame and set them into scope
+        formatted_order_due_date = orderDF[orderNumberArray[orderCount]].iloc[0]['order_due_date']
+        formatted_order_ship_by_date = orderDF[orderNumberArray[orderCount]].iloc[0]['order_ship_by_date']
+        
+        #Builds Title value for the parent JIRA card
         cardTitle = str(orderNumberArray[orderCount]) + " - " + str(orderDF[orderNumberArray[orderCount]].iloc[0]['customer_first_name']) + " " + str(orderDF[orderNumberArray[orderCount]].iloc[0]['customer_last_name'])
 
+        #Builds description header value for the parent JIRA card
         cardDescriptionHeader = "\nOrder #" + str(orderNumberArray[orderCount]) + " | Placed On: " + str(orderDF[orderNumberArray[orderCount]].iloc[0]['created_at']) + " | Placed By: " + str(orderDF[orderNumberArray[orderCount]].iloc[0]['customer_first_name']) + " " + str(orderDF[orderNumberArray[orderCount]].iloc[0]['customer_last_name'])
-
         cardDescriptionItemHeader = f"\nLine Item(s) Present: {str(orderDF[orderNumberArray[orderCount]].iloc[0]['line_items_num'])} \nLine Item Information:"
 
+        '''Starts loop to look through line items for their property information'''
         cardDesctiptionItemBody = ""
-        subDescriptionBody = ""
         count = 0
         while count < orderDF[orderNumberArray[orderCount]].iloc[0]['line_items_num']:
-            #Creates key and dictionary frams for storing subtask data
+            #Resets description information to ensure no duplication across card building
+            subDescriptionBody = ""
+
+            #Creates key and dictionary frames for storing subtask data
             subTaskKey = orderNumberArray[orderCount] + "_LI_" + str(count)
-            subTaskCardInfo[subTaskKey] = pd.DataFrame(columns=['order_number','subTitle','subDescription'])
+            subTaskCardInfo[subTaskKey] = pd.DataFrame(columns=['order_number','formatted_order_due_date','formatted_order_ship_by_date','subTitle','subDescription'])
 
-            #Builds parent card data
-            cardDesctiptionItemBody += f"\n\t- Name: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_name']}" + f"\n\t\t- ID: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_id']}" + f"\n\t\t- Price: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_price']}" + f"\n\t\t- Quantity: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_quantity']}"
+            #Builds parent card line item data
+            cardDesctiptionItemBody += f"\n* *Name*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_name']}" + f"\n** *ID*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_id']}" + f"\n** *Price*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_price']}" + f"\n** *Quantity*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_quantity']}"
             
-            #Builds subtask card data
-            subDescriptionBody += f"\n\t\t- ID: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_id']}" + f"\n\t\t- Price: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_price']}" + f"\n\t\t- Quantity: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_quantity']}"
+            #Builds subtask card description data
+            subDescriptionBody += f"\n* *ID*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_id']}" + f"\n* *Price*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_price']}" + f"\n* *Quantity*: {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_quantity']}"
 
+            '''Loops through the properties of each subtask, if they exist, and builds them onto the card descriptions'''
             propCount = 0
             line_item_properties_num = lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_properties_num']
             if line_item_properties_num > 0:
-                cardDesctiptionItemBody += "\n\t\t- Properties: "
+                cardDesctiptionItemBody += "\n** *Properties*: "
                 while propCount < line_item_properties_num:
                     propValue = lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_properties_values'][propCount]
                     strippedValue = re.sub("\\n","",str(propValue))
                     
-                    cardDesctiptionItemBody += f"\n\t\t\t- {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_properties_names'][propCount]}" + f"\n\t\t\t\t- {strippedValue}"
+                    cardDesctiptionItemBody += f"\n*** *{lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_properties_names'][propCount]}*: {strippedValue}"
 
-                    subDescriptionBody += f"\n\t\t\t- {lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_properties_names'][propCount]}" + f"\n\t\t\t\t- {strippedValue}"
+                    subDescriptionBody += f"* *{lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_properties_names'][propCount]}*: {strippedValue}\n"
 
                     propCount += 1
 
+            #Sets subtask values into an array for passing into the dictionary
             subValue = [orderNumberArray[orderCount],
-                    lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_name'],
-                    subDescriptionBody]
+                        formatted_order_due_date,
+                        formatted_order_ship_by_date,
+                        lineItemDFCopy[f'{orderNumberArray[orderCount]}_LI_{count}'].iloc[0]['line_items_name'],
+                        subDescriptionBody]
         
             subTaskCardInfo[subTaskKey] = subValue
 
@@ -267,7 +315,7 @@ def buildCreateCardData(orderDF,lineItemDFCopy,orderNumberArray):
             quantity+=lineQuantity
             itemNumCount+=1
 
-        cardInfo[orderNumberArray[orderCount]] = pd.DataFrame(columns=['order_number','orderPlacedDate','order_status','financial_status','cardTitle','cardDescription','orderLink','itemsInOrder'])
+        cardInfo[orderNumberArray[orderCount]] = pd.DataFrame(columns=['order_number','orderPlacedDate','formatted_order_due_date','formatted_order_ship_by_date','order_status','financial_status','cardTitle','cardDescription','orderLink','itemsInOrder'])
 
         #Time corrector for JIRA card format
         timestamp = orderDF[orderNumberArray[orderCount]].iloc[0]['created_at']
@@ -284,6 +332,8 @@ def buildCreateCardData(orderDF,lineItemDFCopy,orderNumberArray):
 
         cardDetails = [orderNumberArray[orderCount],
                     formatted_timestamp,
+                    formatted_order_due_date,
+                    formatted_order_ship_by_date,
                     orderDF[orderNumberArray[orderCount]].iloc[0]['fulfillment_status'],
                     orderDF[orderNumberArray[orderCount]].iloc[0]['financial_status'],
                     cardTitle,

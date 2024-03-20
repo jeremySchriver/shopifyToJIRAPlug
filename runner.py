@@ -41,29 +41,19 @@ while count < len(orderNumberArray):
     key = str(orderNumberArray[count])
     lineCount = 0
     lineItemsInOrder = orderDF[orderNumberArray[count]].iloc[0]['line_items_num']
-
-    print(jira_base_url,
-           jira_project_key,
-           jira_username,
-           jira_key,
-           cardInfo[orderNumberArray[count]][4],
-           cardInfo[orderNumberArray[count]][5],
-           cardInfo[orderNumberArray[count]][0],
-           cardInfo[orderNumberArray[count]][6],
-           cardInfo[orderNumberArray[count]][7],
-           cardInfo[orderNumberArray[count]][1])
     
-    #createJIRATask(base_url,project_key,username,key,title,description,orderNumber,orderLink,orderItemNum,orderReceivedDate)
-    response = createJIRATask(str(jira_base_url),
-                              str(jira_project_key),
-                              str(jira_username),
-                              str(jira_key),
-                              str(cardInfo[orderNumberArray[count]][4]),
-                              str(cardInfo[orderNumberArray[count]][5]),
-                              int(cardInfo[orderNumberArray[count]][0]),
+    response = createJIRATask(jira_base_url,
+                              jira_project_key,
+                              jira_username,
+                              jira_key,
                               str(cardInfo[orderNumberArray[count]][6]),
-                              int(cardInfo[orderNumberArray[count]][7]),
-                              cardInfo[orderNumberArray[count]][1])
+                              str(cardInfo[orderNumberArray[count]][7]),
+                              int(cardInfo[orderNumberArray[count]][0]),
+                              str(cardInfo[orderNumberArray[count]][8]),
+                              int(cardInfo[orderNumberArray[count]][9]),
+                              cardInfo[orderNumberArray[count]][1],
+                              cardInfo[orderNumberArray[count]][2],
+                              cardInfo[orderNumberArray[count]][3])
     print(response.status_code)
     if response.status_code == 200 or 201:
         # Parse the JSON string
@@ -72,7 +62,14 @@ while count < len(orderNumberArray):
         while lineCount < lineItemsInOrder:
             subKey = str(orderNumberArray[count]) + "_LI_" + str(lineCount)
 
-            createJIRASubTask(jira_base_url,jira_project_key,jira_username,jira_key,response_json['key'],subTaskCardInfo[subKey][1],subTaskCardInfo[subKey][2])
+            createJIRASubTask(jira_base_url,
+                              jira_project_key,
+                              jira_username,
+                              jira_key,
+                              response_json['key'],
+                              subTaskCardInfo[subKey][3],
+                              subTaskCardInfo[subKey][4],
+                              cardInfo[orderNumberArray[count]][2])
 
             lineCount+=1
     else:
