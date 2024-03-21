@@ -24,7 +24,7 @@ shopify_request_type = "orders.json?"
 shopify_created_at_min = "2024-03-01T00:00:00-05:00"
 shopify_fulfillment_status = "any" #doesn't seem to be working at this time
 shopify_status = "any"
-shopify_logOutputPath = "E:\\Code Projects\\Bug And Bear\\"
+shopify_logOutputPath = "E:\\Code Projects\\ShopifyWork\\shopifyToJIRAPlug\\"
 
 
 '''Start runner to get data and use it'''
