@@ -146,7 +146,7 @@ def processShopifyOrderData(data):
             orderDatePlusShipByTat = add_business_days(input_date, shipByTat)
             #orderDatePlusTat += datetime.timedelta(days=turnAroundTime)
 
-            #Format time stamps to expected JIRA formatimpor
+            #Format time stamps to expected JIRA format
             formatted_order_due_date = orderDatePlusTat.strftime('%Y-%m-%d')
             formatted_order_ship_by_date = orderDatePlusShipByTat.strftime('%Y-%m-%d')
 
@@ -344,3 +344,62 @@ def buildCreateCardData(orderDF,lineItemDFCopy,orderNumberArray):
         orderCount+=1
 
     return(cardInfo,subTaskCardInfo)
+
+def correctForFufilledOrders(cardInfo,subTaskCardInfo,orderNumberArray,orderDF):
+    '''Start of method to find orders that are already fufilled and set them into their own dictionary'''
+    count = 0
+    orderCount = len(cardInfo)
+    holderArray = []
+    holderSubArray = []
+    subHolderArray = []
+    fulfilledCardDict = {}
+    fulfilledSubCardDict = {}
+
+    if orderCount > 0:
+        while count < orderCount:
+            
+            if cardInfo[orderNumberArray[count]][4] == "fulfilled":
+                #trigger condition for storing information to another array
+                holderArray.append(str(cardInfo[orderNumberArray[count]][0]))
+
+                key = str(orderNumberArray[count])
+                fulfilledCardDict[key] = cardInfo[orderNumberArray[count]]
+
+                #Check for line items and store in another array
+                lineItemsInOrder = orderDF[orderNumberArray[count]].iloc[0]['line_items_num']
+                lineCount = 0
+
+                while lineCount < lineItemsInOrder:
+                    subKey = str(orderNumberArray[count]) + "_LI_" + str(lineCount)
+                    subHolderArray.append(subKey)
+                    fulfilledSubCardDict[subKey] = subTaskCardInfo[subKey]
+
+                    lineCount+=1
+                
+            count+=1
+    
+    #Loop to remove fufilled cards from the original dictionary
+    count = 0
+    if len(fulfilledCardDict) > 0:
+        while count < len(fulfilledCardDict):
+            #Check if the desired index exists in the dictionary
+            #print(str(holderArray[count]))
+            if str(holderArray[count]) in cardInfo:
+                #Determine line items in the given order
+                lineItemsInOrder = orderDF[str(holderArray[count])].iloc[0]['line_items_num']
+                lineCount = 0
+
+                while lineCount < lineItemsInOrder:
+                    subKey = str(holderArray[count]) + "_LI_" + str(lineCount)
+                    del subTaskCardInfo[subKey]
+                    #print(f"Should be deleting {subKey} from subTaskCardInfo")
+                    lineCount+=1
+
+                del cardInfo[str(holderArray[count])]
+                #print(f"Should be deleting {holderArray[count]} from cardInfo")
+            else:
+                print(f"Frame for {holderArray[count]} not found in original dictionary")
+
+            count+=1
+    else:
+        print("No fufilled orders found in the pull")
